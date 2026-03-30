@@ -12,7 +12,7 @@ TODAY = date.today().isoformat()  # 格式: 2026-03-27
 
 headers = {
     'Authorization': f'Bearer {token}',
-    'Notion-Version': '2025-09-03',
+    'Notion-Version': '2022-06-28',
     'Content-Type': 'application/json',
 }
 
@@ -37,7 +37,7 @@ query = {
 }
 
 req = urllib.request.Request(
-    f'https://api.notion.com/v1/data_sources/{DB_ID}/query',
+    f'https://api.notion.com/v1/databases/{DB_ID}/query',
     data=json.dumps(query).encode(),
     headers=headers, method='POST'
 )
