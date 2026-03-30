@@ -4,6 +4,10 @@
     "anthropics-frontend-design": {
       "version": "0.1.0",
       "installedAt": 1774842621498
+    },
+    "superpowers": {
+      "version": "1.0.0",
+      "installedAt": 1774845026543
     }
   }
 }
