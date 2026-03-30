@@ -1,0 +1,28 @@
+# MEMORY.md
+
+## 长期偏好与系统方向
+
+- ASA Prompt 需要演进为「三层模型自动辨别与主动切换」架构：
+  - 第一层（决策搭档）优先 Claude
+  - 第二层（问题解决者）优先 ChatGPT
+  - 第三层（执行者）优先本地模型（Mac mini 部署后）
+- 目标是提升整体性价比与自动化程度，减少手动模型切换。
+- Obsidian 历史正式使用路径曾为 App Store 沙盒容器目录：`/Users/gaojames/Library/Containers/24C126FF-5A43-466C-8507-9D4C8B24DB70/Data/Documents/`。
+  - 三个成员独立库分别为：`高飞库`、`苗苗库`、`禾禾库`
+  - 后续各自 Agent 的记录默认写入各自对应库
+  - 不再使用 `~/Documents/Obsidian Vault` 作为正式库路径
+- 2026-03-16 起，老板确认当前正式使用的本地 Obsidian 路径更新为：`/Users/dazuiqingwa/Library/Mobile Documents/com~apple~CloudDocs/笔记`
+  - 这是新的正式路径，替代先前记录的 `/Users/dazuiqingwa/笔记`
+  - 当前库结构仍包含：`高飞库`、`苗苗库`、`禾禾库`、`家庭共享库`
+- 资产沉淀当前采用四条并列主线：
+  1) 英语学习法
+  2) ASA Prompt 迭代
+  3) 创作/决策/系统工具
+  4) 总索引与反链骨架
+- Prompt 升级闸门：没有证据链与评测结果，不升级当前生效版。
+- 2026-03-18：当前 OpenClaw 已运行在 Mac mini 低配版（16GB）上；原计划的 64GB 高配版已退单，后续等待 2026 年 6 月新 Mac Studio 发布后再评估。
+- 本地推理技术路线中，需优先评估并实测 **OMLX**（Mac 定向优化的开源方案）作为本地模型加速候选。
+- 新增硬规则：以后安装任何新 Skill 前，必须先用 `skill-vetting` 进行安全与价值评估；由 ASA 先出评估结论，再由老板决定是否安装。
+- 家庭 OpenClaw 系统的总体设计目标已确认：先把老板这一套在 Mac mini + 云端 API + NAS 上跑通，再形成可复制模板，之后再复制给苗苗与禾禾。原则上由系统吸收复杂度，家人只通过各自主入口使用，不要求理解 Session / 压缩 / 路由等后台机制。
+- 上网查信息、爬取网页时，默认优先使用 Browser；不要再调用 Brave Search。原因不是临时缺 Key，而是老板明确不想为 Brave Search 开 API Key，这已经是固定工作规则。
+- 小红书内容默认以 ASA 的名义发布，采用“记录者”的第一视角书写，而不是站在老板本人第一视角发言。

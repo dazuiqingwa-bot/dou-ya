@@ -1,0 +1,420 @@
+# OpenClaw Session Stability Notes
+
+Updated: 2026-03-21
+Purpose: baseline notes for OpenClaw repair / session health checks on this machine.
+
+## What Was Fixed
+
+### 1. `invalid_workspace_selected` on main session
+
+Symptoms:
+- Main Session opened but appeared to lose memory.
+- Web UI showed `{"detail":{"code":"invalid_workspace_selected"}}`.
+- Failures happened before token usage reached the model.
+
+Confirmed root cause:
+- The `openai-codex` OAuth account/workspace binding had gone stale.
+- OpenClaw was rejected upstream before normal model execution.
+
+Fix applied:
+- Refreshed `openai-codex` OAuth.
+- Restarted Gateway.
+- Verified the same main session could run successfully again.
+
+### 2. Heartbeat polluting main-session behavior
+
+Symptoms:
+- Heartbeat and main session were too tightly coupled.
+- Main session state became confusing and fragile.
+
+Fix applied:
+- Heartbeat was isolated away from the main session flow.
+- Current heartbeat config is intended to reduce cross-session contamination.
+
+### 3. Telegram direct session metadata drift
+
+Symptoms:
+- `agent:main:telegram:direct:8058767394` had Telegram semantics but was indexed as `webchat`.
+
+Fix applied:
+- Repaired `sessions.json` metadata so the Telegram direct session is labeled as Telegram again.
+- Verified the Telegram session itself could run successfully.
+
+## Important Findings
+
+### 1. `sessionKey` is stable; `sessionId` is not
+
+OpenClaw keeps conversation continuity primarily by `sessionKey`.
+
+Examples on this machine:
+- Main session key: `agent:main:main`
+- Heartbeat key: `agent:main:heartbeat`
+- Telegram direct key: `agent:main:telegram:direct:8058767394`
+
+`sessionId` is only the current transcript id behind that key.
+It can rotate when a reset policy triggers.
+
+Practical meaning:
+- If an integration, UI, browser tab, or automation keeps an old `sessionId`, it may point at stale state.
+- Future-safe references should prefer `sessionKey` semantics, not old `sessionId` assumptions.
+
+### 2. Default direct-session daily rollover is risky for UI continuity
+
+OpenClaw docs confirm that direct sessions normally roll to a new `sessionId` after the daily reset boundary (default 4:00 AM local time) on the next message.
+
+This can create the illusion that:
+- memory disappeared,
+- a browser tab opened the wrong session,
+- a saved session reference suddenly became invalid.
+
+### 3. Browser/UI confusion is not only a browser bug
+
+The local OpenClaw browser extension keeps attachment/session tracking in runtime/session storage.
+The larger practical problem on this machine was session-id drift combined with UI/session references, not a standalone long-term browser cache corruption issue.
+
+## Hardening Applied On This Machine
+
+Current session policy in `openclaw.json`:
+
+```json
+{
+  "session": {
+    "dmScope": "per-channel-peer",
+    "resetByType": {
+      "direct": {
+        "mode": "idle",
+        "idleMinutes": 10080
+      }
+    }
+  }
+}
+```
+
+Meaning:
+- DMs are separated by channel + peer.
+- Direct sessions no longer rotate daily by default.
+- Direct sessions now rotate only after 7 days of inactivity.
+
+Why this helps:
+- Main / Web UI / Telegram direct sessions keep a stable current transcript much longer.
+- Old-session-id confusion should happen far less often.
+- New ports, new browser tabs, and future agent tooling have a more stable baseline.
+
+## Current Known Risks
+
+### 1. CLI `--session-id` can be misleading in practice
+
+Observed on this machine:
+- A direct CLI test using an old Telegram session id landed in main-session transcript instead of the intended Telegram transcript.
+- A direct call using the explicit session key hit the correct Telegram session.
+
+Working rule:
+- Do not trust old `sessionId` values as durable routing handles.
+- Prefer session-key-based reasoning whenever possible.
+
+### 2. `sessionId` / `sessionFile` drift can exist legitimately
+
+A session store entry may show:
+- the same `sessionKey`,
+- a newer current `sessionId`,
+- but an older `sessionFile` path still backing the transcript.
+
+This is confusing but not automatically broken.
+It must be interpreted carefully during repair work.
+
+### 3. Gateway is the source of truth
+
+Manual edits to `sessions.json` are possible, but Gateway may rewrite entries as sessions run.
+After session-related edits, restart Gateway and re-check health.
+
+## Repair Checklist For Future OpenClaw Work
+
+When session memory or routing looks wrong, check in this order:
+
+1. `openclaw health`
+2. `openclaw sessions --json`
+3. Inspect `~/.openclaw/agents/<agent>/sessions/sessions.json`
+4. Compare `sessionKey`, `sessionId`, `sessionFile`, `deliveryContext.channel`, and `origin.provider`
+5. Inspect recent transcript tail in the matching `*.jsonl`
+6. Inspect `~/.openclaw/logs/gateway.err.log`
+7. If upstream auth is suspicious, refresh `openai-codex` OAuth and restart Gateway
+8. If metadata is wrong, fix it only after backing up both `sessions.json` and the transcript
+
+## Best Practices For New Agents
+
+### Recommended path
+
+1. Create each new agent with a clear, dedicated purpose.
+2. Give each agent its own workspace context and keep responsibilities narrow.
+3. Keep `dmScope` as `per-channel-peer` unless you intentionally want shared DM buckets.
+4. Keep direct-session reset on long idle, not daily rollover.
+5. Test new agents with a real one-turn smoke test immediately after creation.
+6. Restart Gateway after config/auth/session-structure changes.
+7. Re-open or refresh Web UI tabs after Gateway restart.
+
+### Avoid these mistakes
+
+- Do not build tooling that depends on an old `sessionId` staying valid forever.
+- Do not mix heartbeat responsibilities into main operational sessions.
+- Do not assume Web UI confusion means transcript loss; inspect `sessionKey` vs `sessionId` first.
+- Do not edit session files without making backups first.
+- Do not create many broad, overlapping agents before the routing model is stable.
+
+## Safe Baseline For This Machine
+
+Use this machine as if these rules are true:
+- `sessionKey` is the durable identity.
+- `sessionId` is a replaceable current transcript pointer.
+- Gateway restart is required after important session/auth/config repairs.
+- New direct agents should prefer long idle resets, not daily resets.
+- Browser/UI confusion should be treated as a routing/state problem first, not as immediate memory destruction.
+
+## Suggested Thread Use
+
+This conversation thread can be treated as the dedicated OpenClaw repair / verification thread.
+Use it for:
+- session drift checks,
+- auth breakages,
+- routing anomalies,
+- heartbeat isolation verification,
+- new-agent hardening before production use.
+
+---
+
+## Audit Supplement — 2026-03-22 (Round 2 Read-Only Verification)
+
+Purpose:
+- verify the 2026-03-21 repair baseline,
+- identify remaining stability risks before any new project expansion,
+- create a durable pre-fix checkpoint for future OpenClaw / Codex / Claude Code repair work.
+
+### Commands run
+
+- `openclaw status`
+- `openclaw -v`
+- `openclaw security audit --deep`
+- `openclaw update status`
+- `openclaw health --json`
+- `openclaw status --all`
+- read-only inspection of:
+  - `~/.openclaw/openclaw.json`
+  - `~/.openclaw/agents/main/sessions/sessions.json`
+  - `~/.openclaw/logs/gateway.err.log`
+  - `~/.openclaw/logs/gateway.log`
+  - workspace `MEMORY.md` and `memory/`
+  - local OpenClaw docs for `operator.read`
+
+### Verified healthy / improved
+
+1. **Main / heartbeat / Telegram session separation is intact**
+   - `sessions.json` currently contains exactly:
+     - `agent:main:main`
+     - `agent:main:heartbeat`
+     - `agent:main:telegram:direct:8058767394`
+   - Telegram session metadata now matches Telegram semantics again:
+     - `deliveryContext.channel = telegram`
+     - `origin.provider = telegram`
+
+2. **Long-idle direct-session policy is still in place**
+   - Current config still shows:
+     - `session.dmScope = per-channel-peer`
+     - `session.resetByType.direct.mode = idle`
+     - `session.resetByType.direct.idleMinutes = 10080`
+   - This confirms daily 4 AM rollover is no longer the default direct-session behavior on this machine.
+
+3. **Gateway is running locally and serving the active system**
+   - Gateway service is active.
+   - Main session is updating normally.
+   - Heartbeat is isolated to its own session.
+
+4. **Version status is clearer than the compact output first suggested**
+   - `openclaw -v` → `2026.3.13`
+   - `openclaw status --all` reports `Update: pnpm · npm latest 2026.3.13`
+   - Practical conclusion: current install appears to already match the latest npm-visible version at audit time.
+
+### Remaining issues / risks
+
+1. **Gateway diagnostics are degraded by missing `operator.read` scope**
+   - `openclaw status`, `status --all`, and deep security audit all report:
+     - `missing scope: operator.read`
+   - Local docs confirm this means the gateway is reachable, but detail RPCs are scope-limited rather than fully unavailable.
+   - Practical effect:
+     - control-plane diagnostics are incomplete,
+     - some status/config/presence RPCs fail from the current operator connection,
+     - future debugging is harder than it should be.
+   - This is a visibility / observability problem, not evidence that the gateway process is down.
+
+2. **Telegram channel health output is confusing because config appears to use legacy token shape**
+   - `status --all` shows Telegram is OK and token source is `config`.
+   - `health --json` showed Telegram probe OK but `running: false` / `tokenSource: none`.
+   - Raw config inspection shows Telegram is stored as legacy direct config:
+     - `channels.telegram.botToken = ...`
+     - not multi-account `channels.telegram.accounts.default...`
+   - Most likely interpretation:
+     - channel is usable,
+     - but some health/status surfaces interpret the legacy config differently, creating misleading output.
+   - This is a stability-observability issue more than a confirmed delivery outage.
+
+3. **OpenClaw memory files exist, but platform-level memory indexing is not clearly active**
+   - Workspace files are present:
+     - `MEMORY.md`
+     - `memory/*.md`
+   - But `openclaw status` reported memory like `0 files · 0 chunks`.
+   - Practical meaning:
+     - durable notes exist at the file layer,
+     - but OpenClaw’s higher-level memory index / status reporting is not clearly ingesting them.
+   - This can contribute to the operator feeling that “memory is gone” even when the files still exist.
+
+4. **Security audit warnings still need cleanup**
+   - `gateway.trustedProxies` is empty (acceptable if Control UI stays local-only, but should be explicit).
+   - `gateway.nodes.denyCommands` contains ineffective command IDs:
+     - `camera.snap`
+     - `camera.clip`
+     - `screen.record`
+     - `contacts.add`
+     - `calendar.add`
+     - `reminders.add`
+     - `sms.send`
+   - These do not currently enforce what they appear to enforce.
+
+5. **Telegram group policy is effectively closed by empty allowlists**
+   - audit warning:
+     - `channels.telegram.groupPolicy = allowlist`
+     - `groupAllowFrom` and `allowFrom` are empty
+   - Practical effect:
+     - all Telegram group messages will be silently dropped.
+   - This is fine if intentional, but should be treated as a deliberate policy choice, not an accidental half-configured state.
+
+6. **Config audit trail indicates historical command-line secret exposure risk**
+   - `config-audit.jsonl` contains historical command invocation traces.
+   - At least one past onboarding command included an API key via CLI args.
+   - This is not the current session-stability root cause, but it is important operational debt and should be considered during later security cleanup.
+
+### Working conclusions after Round 2
+
+1. The major 2026-03-21 session continuity repair appears to be holding.
+2. The most urgent remaining work is no longer transcript identity drift itself.
+3. The highest-value next step is to improve **observability and config clarity**:
+   - fix operator scope visibility,
+   - normalize Telegram config shape if appropriate,
+   - decide whether Telegram group allowlist-empty is intentional,
+   - inspect why memory status does not reflect existing memory files.
+4. Do not expand system complexity (more skills / more projects / more routing assumptions) until these visibility issues are understood and, where needed, repaired.
+
+### Proposed next repair order
+
+1. Repair / clarify `operator.read` diagnostics path
+2. Normalize or intentionally keep Telegram legacy config, but document the choice
+3. Decide whether Telegram group dropping is desired behavior
+4. Investigate memory indexing / status mismatch
+5. Clean up ineffective `denyCommands` entries
+6. Later: security hygiene pass for audit/log exposure history
+
+---
+
+## Audit Supplement — 2026-03-23 (Memory Repair Follow-up)
+
+Purpose:
+- continue the 2026-03-22 stability audit,
+- resolve the semantic memory failure that made the assistant feel "memory-less",
+- record a durable repair path for future OpenClaw / Codex / Claude Code sessions.
+
+### What was already known before repair
+
+Workspace memory files existed and were readable:
+- `~/.openclaw/workspace/MEMORY.md`
+- `~/.openclaw/workspace/memory/*.md`
+
+But semantic memory status initially showed:
+- `Indexed: 0/13 files · 0 chunks`
+- `Provider: none (requested: auto)`
+- `Embeddings: unavailable`
+
+We also confirmed:
+- `~/.openclaw/memory/main.sqlite` already existed,
+- but it was effectively empty before provider repair (`files=0`, `chunks=0`).
+
+### Root cause of memory failure
+
+The memory index was not broken because files were missing.
+It was broken because **no embedding provider was available** for semantic indexing.
+
+Important observed behavior on this machine:
+- OpenAI Codex OAuth for chat/model use does **not** satisfy memory embeddings.
+- When no embedding provider is available, `openclaw memory index --force` can print an update message but still skip sync in FTS-only mode.
+- The decisive log line was:
+  - `Skipping memory file sync in FTS-only mode (no embedding provider)`
+
+### Repair performed
+
+1. An OpenAI API key was added on the machine for Gateway/CLI visibility.
+2. Gateway was restarted.
+3. Memory provider availability was re-checked until status showed:
+   - `Provider: openai`
+   - `Model: text-embedding-3-small`
+   - `Embeddings: ready`
+4. Memory indexing was forced again:
+   - `openclaw memory index --agent main --force --verbose`
+5. Store contents and search behavior were then verified directly.
+
+### Verified post-repair state
+
+Direct SQLite check on `~/.openclaw/memory/main.sqlite` showed:
+- `files = 13`
+- `chunks = 16`
+- `embedding_cache = 16`
+
+CLI status after repair showed:
+- `Indexed: 13/13 files · 16 chunks`
+- `Provider: openai`
+- `Model: text-embedding-3-small`
+- `Embeddings: ready`
+- `Vector: ready`
+- `FTS: ready`
+
+Live semantic search also returned expected results, for example:
+- `openclaw memory search "禾禾 学习系统"`
+  returned a relevant snippet from `MEMORY.md`.
+
+### Practical conclusion
+
+Semantic memory is now working again on this machine.
+The assistant now has:
+- file-layer memory (`MEMORY.md`, `memory/*.md`), and
+- semantic memory index (`main.sqlite`) aligned again.
+
+### Important lessons / future repair notes
+
+1. **Do not assume Codex/OpenAI OAuth covers memory embeddings.**
+   It covers chat/model access, not memory indexing.
+
+2. **If memory status shows files present in scan but indexed files/chunks remain zero, check provider readiness first.**
+   Use:
+   - `openclaw memory status --agent main --deep`
+
+3. **A successful-looking `memory index` run is not enough.**
+   Confirm with both:
+   - `openclaw memory status --agent main --deep`
+   - direct SQLite counts if needed
+
+4. **Ground truth for repaired memory on this machine is:**
+   - `~/.openclaw/memory/main.sqlite`
+   - `files > 0`
+   - `chunks > 0`
+   - working `openclaw memory search ...`
+
+5. **If memory regresses again**, check in this order:
+   1. `openclaw memory status --agent main --deep`
+   2. confirm provider is not `none`
+   3. confirm embeddings are `ready`
+   4. `openclaw memory index --agent main --force --verbose`
+   5. inspect `~/.openclaw/memory/main.sqlite`
+   6. run a real `openclaw memory search "..."`
+
+### Remaining open items after memory repair
+
+Still not fully closed:
+1. `operator.read` remains degraded for some CLI/probe paths even though the web Control UI recovered in practice.
+2. Telegram config is still legacy single-account shape (functional, but not yet normalized).
+3. Telegram group policy is still allowlist-empty (not a current priority unless Telegram group usage becomes intentional).
+4. Ineffective `gateway.nodes.denyCommands` entries still need cleanup later.

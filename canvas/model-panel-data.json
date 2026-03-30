@@ -1,0 +1,124 @@
+{
+  "generatedAt": "2026-03-10T09:38:04.638640+00:00",
+  "panelVersion": "v0.1",
+  "gateway": {
+    "openclawVersion": "2026.3.2",
+    "healthText": "Config was last written by a newer OpenClaw (2026.3.8); current version is 2026.3.2.\nConfig was last written by a newer OpenClaw (2026.3.8); current version is 2026.3.2.\nConfig was last written by a newer OpenClaw (2026.3.8); current version is 2026.3.2.\nConfig was last written by a newer OpenClaw (2026.3.8); current version is 2026.3.2.\nTelegram: ok (@asa_gaofei_bot) (2943ms)\nAgents: main (default)\nHeartbeat interval: 1h (main)\nSession store (main): /Users/gaojames/.openclaw/agents/main/sessions/sessions.json (2 entries)\n- agent:main:main (5m ago)\n- agent:main:telegram:direct:8058767394 (56m ago)"
+  },
+  "status": {
+    "defaultModel": "openai-codex/gpt-5.4",
+    "resolvedDefault": "openai-codex/gpt-5.4",
+    "fallbacks": [
+      "anthropic/claude-sonnet-4-20250514"
+    ],
+    "imageModel": null,
+    "allowed": [
+      "anthropic/claude-sonnet-4-20250514",
+      "openai-codex/gpt-5.3-codex",
+      "openai-codex/gpt-5.4"
+    ],
+    "aliases": {
+      "claude": "anthropic/claude-sonnet-4-20250514"
+    }
+  },
+  "providers": [
+    {
+      "provider": "anthropic",
+      "status": "ok",
+      "expiresAt": null,
+      "remainingMs": null,
+      "profiles": [
+        {
+          "profileId": "anthropic:manual",
+          "provider": "anthropic",
+          "type": "token",
+          "status": "static",
+          "source": "store",
+          "label": "anthropic:manual"
+        }
+      ]
+    },
+    {
+      "provider": "openai-codex",
+      "status": "ok",
+      "expiresAt": 1773640079454,
+      "remainingMs": 504597395,
+      "profiles": [
+        {
+          "profileId": "openai-codex:default",
+          "provider": "openai-codex",
+          "type": "oauth",
+          "status": "ok",
+          "expiresAt": 1773640079454,
+          "remainingMs": 504597395,
+          "source": "store",
+          "label": "openai-codex:default"
+        }
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "id": "openai-codex/gpt-5.4",
+      "input": "-",
+      "context": "-",
+      "local": false,
+      "auth": false,
+      "tags": [
+        "default",
+        "configured",
+        "missing"
+      ],
+      "status": "missing"
+    },
+    {
+      "id": "anthropic/claude-sonnet-4-20250514",
+      "input": "text",
+      "context": "195k",
+      "local": false,
+      "auth": true,
+      "tags": [
+        "fallback#1",
+        "configured",
+        "alias:claude"
+      ],
+      "status": "ok"
+    }
+  ],
+  "local": {
+    "ollamaInstalled": false,
+    "ollamaBinary": null,
+    "ollamaModels": [],
+    "futureHosts": [
+      {
+        "name": "Mac mini",
+        "status": "reserved",
+        "note": "预留本地模型部署位：到货后接入 Ollama / OMLX / LM Studio 任选其一"
+      }
+    ]
+  },
+  "ops": {
+    "switchExamples": [
+      "openclaw models set openai-codex/gpt-5.4",
+      "openclaw models set claude",
+      "openclaw models set ollama/gpt-oss:20b"
+    ],
+    "authExamples": [
+      "openclaw models auth login --provider openai-codex",
+      "openclaw models auth paste-token --provider anthropic"
+    ],
+    "installExamples": [
+      "ollama pull gpt-oss:20b",
+      "ollama pull qwen2.5-coder:32b",
+      "ollama pull deepseek-r1:32b"
+    ],
+    "refreshCommand": "python3 /Users/gaojames/.openclaw/workspace/scripts/model_panel_refresh.py"
+  },
+  "raw": {
+    "modelsStatusOk": true,
+    "modelsListOk": true,
+    "ollamaListOk": false,
+    "modelsListText": "Config was last written by a newer OpenClaw (2026.3.8); current version is 2026.3.2.\nConfig was last written by a newer OpenClaw (2026.3.8); current version is 2026.3.2.\nModel                                      Input      Ctx      Local Auth  Tags\nopenai-codex/gpt-5.4                       -          -        -     -     default,configured,missing\nanthropic/claude-sonnet-4-20250514         text       195k     no    yes   fallback#1,configured,alias:claude\nopenai-codex/gpt-5.3-codex                 text+image 266k     no    yes   configured\n",
+    "ollamaListText": "ollama not installed"
+  }
+}

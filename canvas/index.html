@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASA 模型管理面板</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121931;
+      --panel-2: #182241;
+      --text: #eef3ff;
+      --muted: #9aa6c4;
+      --ok: #39d98a;
+      --warn: #ffcc66;
+      --bad: #ff7a7a;
+      --accent: #7aa2ff;
+      --border: rgba(255,255,255,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #0b1020 0%, #0d1328 100%);
+      color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .topbar { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:20px; }
+    h1 { margin:0; font-size:28px; }
+    .subtitle { color: var(--muted); margin-top:6px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; }
+    button {
+      border:1px solid var(--border); background:var(--panel-2); color:var(--text);
+      padding:10px 14px; border-radius:10px; cursor:pointer;
+    }
+    button:hover { border-color: rgba(122,162,255,.6); }
+    .grid { display:grid; gap:16px; }
+    .kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .two-col { grid-template-columns: 1.2fr .8fr; }
+    .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .panel {
+      background: rgba(18,25,49,.92); border:1px solid var(--border); border-radius:16px;
+      padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.22);
+    }
+    .panel h2, .panel h3 { margin:0 0 12px; }
+    .muted { color: var(--muted); }
+    .kpi .label { color: var(--muted); font-size:12px; }
+    .kpi .value { font-size:24px; font-weight:700; margin-top:6px; }
+    .chip { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; margin-right:6px; }
+    .ok { background: rgba(57,217,138,.12); color: var(--ok); }
+    .warn { background: rgba(255,204,102,.12); color: var(--warn); }
+    .bad { background: rgba(255,122,122,.12); color: var(--bad); }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding:10px 8px; border-top:1px solid var(--border); text-align:left; vertical-align:top; }
+    th { color: var(--muted); font-weight:600; }
+    .code {
+      background:#0a1022; border:1px solid var(--border); border-radius:12px;
+      padding:10px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      word-break: break-all; margin:8px 0;
+    }
+    .section-note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .model-current { font-weight: 700; color: var(--accent); }
+    .list { display:grid; gap:10px; }
+    .card { background:#0d1429; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .tiny { font-size:12px; }
+    @media (max-width: 1100px) {
+      .kpi-grid, .two-col, .three-col { grid-template-columns: 1fr; }
+      .topbar { flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>ASA 模型管理面板</h1>
+        <div class="subtitle">云端模型 + 本地模型统一监控 / 切换 / 安装预留位</div>
+      </div>
+      <div class="actions">
+        <button id="refreshBtn">刷新数据</button>
+        <button id="toggleAutoBtn">开启 15 秒自动刷新</button>
+      </div>
+    </div>
+
+    <div class="grid kpi-grid">
+      <div class="panel kpi"><div class="label">当前默认模型</div><div class="value" id="defaultModel">—</div></div>
+      <div class="panel kpi"><div class="label">当前会话模型（最近快照）</div><div class="value" id="activeModel">—</div></div>
+      <div class="panel kpi"><div class="label">允许模型总数</div><div class="value" id="allowedCount">—</div></div>
+      <div class="panel kpi"><div class="label">本地模型总数</div><div class="value" id="localCount">—</div></div>
+    </div>
+
+    <div class="grid two-col" style="margin-top:16px;">
+      <div class="panel">
+        <h2>核心状态</h2>
+        <div class="list">
+          <div class="card"><strong>默认模型：</strong><span id="resolvedDefault">—</span></div>
+          <div class="card"><strong>回退链：</strong><span id="fallbacks">—</span></div>
+          <div class="card"><strong>最后刷新：</strong><span id="generatedAt">—</span></div>
+          <div class="card"><strong>刷新策略建议：</strong>默认 <span class="model-current">15 秒</span> 轮询；只有在你盯盘切模型、查授权、安装本地模型时才开自动刷新。平时手动刷新够了，别为了“实时”把自己刷成噪音。</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>KPI / 令牌监控</h2>
+        <div class="list">
+          <div class="card"><strong>会话输入 Token：</strong> <span id="tokensIn">—</span></div>
+          <div class="card"><strong>会话输出 Token：</strong> <span id="tokensOut">—</span></div>
+          <div class="card"><strong>上下文占用：</strong> <span id="contextUsage">—</span></div>
+          <div class="card"><strong>剩余额度：</strong> <span id="usageLeft">—</span></div>
+          <div class="section-note">说明：这里先展示“最近一次快照”的会话级 KPI。真正跨会话、跨模型、跨天的成本/吞吐统计，需要再接一层采集器。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>可用模型列表</h2>
+      <table>
+        <thead><tr><th>模型</th><th>输入</th><th>上下文</th><th>本地</th><th>鉴权</th><th>状态</th><th>标签</th></tr></thead>
+        <tbody id="catalogBody"></tbody>
+      </table>
+    </div>
+
+    <div class="grid two-col" style="margin-top:16px;">
+      <div class="panel">
+        <h2>一键切换位（当前先做安全版）</h2>
+        <div id="switchCommands"></div>
+        <div class="section-note">V0.1 先给你可复制的切换命令和当前状态确认；真正浏览器内“一键切换”，下一步接一个本地操作桥就能打通。</div>
+      </div>
+      <div class="panel">
+        <h2>授权 / 提供商健康</h2>
+        <div id="providers"></div>
+      </div>
+    </div>
+
+    <div class="grid two-col" style="margin-top:16px;">
+      <div class="panel">
+        <h2>本地模型部署区</h2>
+        <div id="localModels"></div>
+        <div class="section-note">Mac mini 到货后，建议优先接入 Ollama；如果你要更偏 Apple Silicon 极限优化，再评估 OMLX。</div>
+      </div>
+      <div class="panel">
+        <h2>安装 / 更新操作位</h2>
+        <div id="installCommands"></div>
+        <div class="section-note">当前这部分同样先以“安全可复制命令”落地。理由很简单：没有本地执行桥，浏览器按钮就是假一键。我不给你做假的。</div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>我替你补的关键缺口</h2>
+      <div class="list">
+        <div class="card">1. <strong>授权健康监测</strong>：别只看模型名，要看 OAuth/token 是否快过期。</div>
+        <div class="card">2. <strong>缺失/失效标记</strong>：像 `gpt-5.4` 刚才那种“配置了但 missing”的状态，必须单独高亮。</div>
+        <div class="card">3. <strong>默认模型 vs 当前会话模型</strong>：这两个经常不是一回事，面板必须并列显示。</div>
+        <div class="card">4. <strong>本地部署预留</strong>：把本地运行时、模型拉取、上下文长度、是否支持 tools 预留出来，避免 Mac mini 到货后重做。</div>
+        <div class="card">5. <strong>升级闸门</strong>：以后新增模型，不要直接进生产。先进“候选区”，通过评测再升默认。</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dataUrl = './model-panel-data.json';
+    const sessionSnapshot = {
+      activeModel: 'openai-codex/gpt-5.4',
+      tokensIn: 17,
+      tokensOut: 491,
+      contextUsage: '40k / 200k (20%)',
+      usageLeft: '5h 97% left · Week 99% left',
+      capturedAt: '2026-03-10 17:34 Asia/Shanghai'
+    };
+    let autoTimer = null;
+
+    function chip(text, cls='ok') { return `<span class="chip ${cls}">${text}</span>`; }
+    function esc(s) { return (s ?? '').toString().replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+    async function loadData() {
+      const res = await fetch(dataUrl + '?ts=' + Date.now());
+      const data = await res.json();
+      render(data);
+    }
+
+    function render(data) {
+      document.getElementById('defaultModel').textContent = data.status.defaultModel || '—';
+      document.getElementById('activeModel').textContent = sessionSnapshot.activeModel;
+      document.getElementById('allowedCount').textContent = (data.status.allowed || []).length;
+      document.getElementById('localCount').textContent = (data.local.ollamaModels || []).length;
+      document.getElementById('resolvedDefault').textContent = data.status.resolvedDefault || '—';
+      document.getElementById('fallbacks').textContent = (data.status.fallbacks || []).join(' → ') || '—';
+      document.getElementById('generatedAt').textContent = `${data.generatedAt}（会话快照：${sessionSnapshot.capturedAt}）`;
+
+      document.getElementById('tokensIn').textContent = sessionSnapshot.tokensIn;
+      document.getElementById('tokensOut').textContent = sessionSnapshot.tokensOut;
+      document.getElementById('contextUsage').textContent = sessionSnapshot.contextUsage;
+      document.getElementById('usageLeft').textContent = sessionSnapshot.usageLeft;
+
+      const catalogBody = document.getElementById('catalogBody');
+      catalogBody.innerHTML = (data.catalog || []).map(row => {
+        const isCurrent = row.id === sessionSnapshot.activeModel;
+        const statusCls = row.status === 'missing' ? 'bad' : 'ok';
+        return `<tr>
+          <td>${isCurrent ? '<span class="model-current">★ 当前</span><br>' : ''}<strong>${esc(row.id)}</strong></td>
+          <td>${esc(row.input)}</td>
+          <td>${esc(row.context)}</td>
+          <td>${row.local ? chip('本地','ok') : chip('云端','warn')}</td>
+          <td>${row.auth ? chip('已鉴权','ok') : chip('未鉴权','bad')}</td>
+          <td>${chip(row.status === 'missing' ? '缺失' : '正常', statusCls)}</td>
+          <td>${(row.tags || []).map(t => chip(esc(t), 'warn')).join(' ')}</td>
+        </tr>`;
+      }).join('');
+
+      document.getElementById('switchCommands').innerHTML = (data.ops.switchExamples || []).map(cmd => `<div class="code">${esc(cmd)}</div>`).join('');
+      document.getElementById('installCommands').innerHTML = (data.ops.installExamples || []).map(cmd => `<div class="code">${esc(cmd)}</div>`).join('');
+
+      document.getElementById('providers').innerHTML = (data.providers || []).map(p => {
+        const cls = p.status === 'ok' ? 'ok' : p.status === 'expiring' ? 'warn' : 'bad';
+        const remain = p.remainingMs ? `剩余 ${(p.remainingMs / 3600000).toFixed(1)} 小时` : '—';
+        return `<div class="card"><strong>${esc(p.provider)}</strong> ${chip(esc(p.status || 'unknown'), cls)}<div class="tiny muted">${remain}</div></div>`;
+      }).join('') || '<div class="muted">暂无数据</div>';
+
+      const locals = [];
+      if (data.local.ollamaInstalled) {
+        locals.push(`<div class="card"><strong>Ollama</strong> ${chip('已安装','ok')}<div class="tiny muted">${esc(data.local.ollamaBinary)}</div></div>`);
+      } else {
+        locals.push(`<div class="card"><strong>Ollama</strong> ${chip('未安装','bad')}</div>`);
+      }
+      (data.local.ollamaModels || []).forEach(m => {
+        locals.push(`<div class="card"><strong>${esc(m.name)}</strong><div class="tiny muted">${esc(m.size)} · ${esc(m.modified)}</div></div>`);
+      });
+      (data.local.futureHosts || []).forEach(h => {
+        locals.push(`<div class="card"><strong>${esc(h.name)}</strong> ${chip(esc(h.status), 'warn')}<div class="tiny muted">${esc(h.note)}</div></div>`);
+      });
+      document.getElementById('localModels').innerHTML = locals.join('');
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', loadData);
+    document.getElementById('toggleAutoBtn').addEventListener('click', (e) => {
+      if (autoTimer) {
+        clearInterval(autoTimer); autoTimer = null; e.target.textContent = '开启 15 秒自动刷新';
+      } else {
+        autoTimer = setInterval(loadData, 15000); e.target.textContent = '关闭自动刷新';
+      }
+    });
+
+    loadData().catch(err => alert('面板数据加载失败：' + err.message));
+  </script>
+</body>
+</html>
